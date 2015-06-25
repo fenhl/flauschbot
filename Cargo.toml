@@ -1,0 +1,4 @@
+[package]
+name = "flauschbot"
+version = "0.1.0"
+authors = ["Fenhl <fenhl@fenhl.net>"]
