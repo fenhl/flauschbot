@@ -1,12 +1,16 @@
 extern crate curl;
 extern crate iron;
 #[macro_use] extern crate lazy_static;
+extern crate plugin;
+extern crate queryst;
+extern crate regex;
 extern crate router;
 extern crate rustc_serialize;
 
+mod cmd;
+
 use std::fmt;
 use std::error::Error;
-use std::io::Read;
 
 use curl::http;
 
@@ -16,6 +20,8 @@ use iron::prelude::*;
 use router::Router;
 
 use rustc_serialize::json::{self, Json};
+
+use cmd::SlashCommand;
 
 macro_rules! errors {
     ($($name:ident($msg:expr);)*) => {
@@ -39,17 +45,14 @@ macro_rules! errors {
 }
 
 errors! {
-    Nyi("not yet implemented");
+    AuthError("authentication error");
     WebhookError("error while trying to call Slack incoming webhook");
-}
-
-fn nyi() -> IronError {
-    IronError::new(Nyi, status::NotImplemented)
 }
 
 #[derive(RustcDecodable)]
 struct Config {
-    incoming_webhook: String
+    incoming_webhook: String,
+    token: String
 }
 
 lazy_static! {
@@ -57,14 +60,14 @@ lazy_static! {
 }
 
 fn veto(req: &mut Request) -> IronResult<Response> {
-    println!("DEBUG] req: {:?}", req);
-    let mut body = String::default();
-    try!(req.body.read_to_string(&mut body).map_err(|_| IronError::new(WebhookError, status::InternalServerError)));
-    println!("DEBUG] req.body: {:?}", body);
-    let request_json = Json::Object(vec![("text".to_owned(), Json::String("Veto command test".to_owned()))].into_iter().collect());
+    let cmd = try!(req.get::<SlashCommand>());
+    if &cmd.token != &CONFIG.token[..] {
+        return Err(IronError::new(AuthError, status::Unauthorized));
+    }
+    let request_json = Json::Object(vec![("text".to_owned(), Json::String(format!("User {:?} has been vetoed", cmd.text)))].into_iter().collect());
     let request_body = json::encode(&request_json).unwrap();
     try!(http::handle().post(&CONFIG.incoming_webhook[..], &request_body).exec().map_err(|_| IronError::new(WebhookError, status::InternalServerError)));
-    Err(nyi()) //TODO
+    Ok(Response::with(status::Ok))
 }
 
 fn main() {
