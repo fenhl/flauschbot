@@ -6,6 +6,7 @@ extern crate rustc_serialize;
 
 use std::fmt;
 use std::error::Error;
+use std::io::Read;
 
 use curl::http;
 
@@ -56,7 +57,10 @@ lazy_static! {
 }
 
 fn veto(req: &mut Request) -> IronResult<Response> {
-    println!("DEBUG] request: {:?}", req);
+    println!("DEBUG] req: {:?}", req);
+    let mut body = String::default();
+    try!(req.body.read_to_string(&mut body).map_err(|_| IronError::new(WebhookError, status::InternalServerError)));
+    println!("DEBUG] req.body: {:?}", body);
     let request_json = Json::Object(vec![("text".to_owned(), Json::String("Veto command test".to_owned()))].into_iter().collect());
     let request_body = json::encode(&request_json).unwrap();
     try!(http::handle().post(&CONFIG.incoming_webhook[..], &request_body).exec().map_err(|_| IronError::new(WebhookError, status::InternalServerError)));
