@@ -10,6 +10,8 @@ extern crate rustc_serialize;
 mod cmd;
 mod error;
 
+use std::error::Error;
+
 use curl::http;
 
 use iron::status;
@@ -38,7 +40,7 @@ fn veto(req: &mut Request) -> IronResult<Response> {
     }
     let request_json = Json::Object(vec![("text".to_owned(), Json::String(format!("User {:?} has been vetoed", cmd.text)))].into_iter().collect());
     let request_body = json::encode(&request_json).unwrap();
-    try!(http::handle().post(&CONFIG.incoming_webhook[..], &request_body).exec().map_err(|_| IronError::new(error::WebhookError::from("failed to post veto message"), status::InternalServerError)));
+    try!(http::handle().post(&CONFIG.incoming_webhook[..], &request_body).exec().map_err(|e| IronError::new(error::WebhookError::from(e.description()), status::InternalServerError)));
     Ok(Response::with(status::Ok))
 }
 

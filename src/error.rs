@@ -12,7 +12,7 @@ macro_rules! errors {
     ($($name:ident($msg:expr);)*) => {
         $(
             #[derive(Debug)]
-            pub struct $name(Option<&'static str>);
+            pub struct $name(Option<String>);
 
             impl Default for $name {
                 fn default() -> $name {
@@ -20,9 +20,15 @@ macro_rules! errors {
                 }
             }
 
-            impl From<&'static str> for $name {
-                fn from(msg: &'static str) -> $name {
+            impl From<String> for $name {
+                fn from(msg: String) -> $name {
                     $name(Some(msg))
+                }
+            }
+
+            impl<'a> From<&'a str> for $name {
+                fn from(msg: &str) -> $name {
+                    $name(Some(msg.to_owned()))
                 }
             }
 
@@ -49,21 +55,28 @@ macro_rules! errors {
 
             impl From<$name> for IronError {
                 fn from(err: $name) -> IronError {
-                    let msg = if let Some(msg) = err.0 { format!("{}: {}", $msg, msg) } else { $msg.to_owned() };
+                    let msg = if let Some(ref msg) = err.0 { format!("{}: {}", $msg, msg) } else { $msg.to_owned() };
                     IronError::new(err, (status::BadRequest, msg))
                 }
             }
         )*
-    }
+    };
 }
 
-macro_rules! convert_errors {
-    ($($from:ty :> $to:path;)*) => {
-        $(
-            impl From<$from> for $to {
-                fn from(_: $from) -> $to { $to(Some(stringify!($from))) }
+macro_rules! convert_error {
+    ($from:ty => $to:ty) => {
+        impl From<$from> for $to {
+            fn from(e: $from) -> $to {
+                format!("{} ({})", stringify!($from), e.description()).into()
             }
-        )*
+        }
+    };
+    ($from:ty :> $to:ty) => {
+        impl From<$from> for $to {
+            fn from(_: $from) -> $to {
+                stringify!($from).into()
+            }
+        }
     };
 }
 
@@ -72,8 +85,7 @@ errors! {
     SlashCommandError("slash command error");
     WebhookError("error while trying to call Slack incoming webhook");
 }
-convert_errors! {
-    queryst::ParseError :> SlashCommandError;
-    io::Error :> SlashCommandError;
-    json::DecoderError :> SlashCommandError;
-}
+
+convert_error! { queryst::ParseError :> SlashCommandError }
+convert_error! { io::Error => SlashCommandError }
+convert_error! { json::DecoderError => SlashCommandError }
