@@ -1,8 +1,6 @@
-use std::fmt;
 use std::error::Error;
-use std::io::{self, Read};
+use std::io::Read;
 
-use iron::status;
 use iron::prelude::*;
 use iron::typemap::Key;
 
@@ -12,38 +10,7 @@ use queryst;
 
 use rustc_serialize::{json, Decodable};
 
-#[derive(Clone, Debug)]
-pub struct SlashCommandError;
-
-impl fmt::Display for SlashCommandError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt("slash command error", f)
-    }
-}
-
-impl Error for SlashCommandError {
-    fn description(&self) -> &str {
-        "slash command error"
-    }
-}
-
-impl From<queryst::ParseError> for SlashCommandError {
-    fn from(_: queryst::ParseError) -> SlashCommandError { SlashCommandError }
-}
-
-impl From<io::Error> for SlashCommandError {
-    fn from(_: io::Error) -> SlashCommandError { SlashCommandError }
-}
-
-impl From<json::DecoderError> for SlashCommandError {
-    fn from(_: json::DecoderError) -> SlashCommandError { SlashCommandError }
-}
-
-impl From<SlashCommandError> for IronError {
-    fn from(err: SlashCommandError) -> IronError {
-        IronError::new(err, (status::BadRequest, "slash command error"))
-    }
-}
+use error;
 
 #[derive(RustcDecodable, Clone, Debug)]
 pub struct SlashCommand {
@@ -63,9 +30,9 @@ impl Key for SlashCommand {
 }
 
 impl<'a, 'b> plugin::Plugin<Request<'a, 'b>> for SlashCommand {
-    type Error = SlashCommandError;
+    type Error = error::SlashCommandError;
 
-    fn eval(req: &mut Request) -> Result<SlashCommand, SlashCommandError> {
+    fn eval(req: &mut Request) -> Result<SlashCommand, error::SlashCommandError> {
         let mut body_string = String::default();
         try!(req.body.read_to_string(&mut body_string));
         let body_json = try!(queryst::parse(&body_string));
