@@ -40,8 +40,24 @@ fn veto(req: &mut Request) -> IronResult<Response> {
     }
     let request_json = Json::Object(vec![("text".to_owned(), Json::String(format!("User {:?} has been vetoed", cmd.text)))].into_iter().collect());
     let request_body = json::encode(&request_json).unwrap();
-    try!(http::handle().post(&CONFIG.incoming_webhook[..], &request_body).exec().map_err(|e| IronError::new(error::WebhookError::from(e.description()), status::InternalServerError)));
-    Ok(Response::with(status::Ok))
+    let response = try!(http::handle().post(&CONFIG.incoming_webhook[..], &request_body).exec().map_err(|e| IronError::new(error::WebhookError::from(e.description()), status::InternalServerError)));
+    match response.get_code() {
+        404 => {
+            let err_msg = match std::str::from_utf8(response.get_body()) {
+                Ok(body) => format!("incoming webhook responded {}: {}", response.get_code(), body),
+                Err(_) => format!("incoming webhook responded {}", response.get_code())
+            };
+            Err(IronError::new(error::WebhookError::from(err_msg), status::BadRequest))
+        }
+        //200 => Ok(Response::with(status::Ok)),
+        _ => {
+            let err_msg = match std::str::from_utf8(response.get_body()) {
+                Ok(body) => format!("incoming webhook responded {}: {}", response.get_code(), body),
+                Err(_) => format!("incoming webhook responded {}", response.get_code())
+            };
+            Err(IronError::new(error::WebhookError::from(err_msg), status::InternalServerError))
+        }
+    }
 }
 
 fn main() {
